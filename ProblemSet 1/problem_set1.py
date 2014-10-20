@@ -275,7 +275,7 @@ def plot_waveforms(time,voltage,APTimes,titlestr):
             # for poits very close to zero, fill them with zeros as well
             voltage_axis[ 0 : missing ] = 0          
             # for points not very close to zero, get the actual measurements from action potentials
-            voltage_axis[ i:measurements_per_rate ] = voltage[ action_potentials[ 1 ] ] 
+            voltage_axis[ val:measurements_per_rate ] = voltage[ action_potentials[ 1 ] ] 
                 
         # plot the waveform with a blue color      
         plt.plot(time_axis, voltage_axis, color='b', hold=True)

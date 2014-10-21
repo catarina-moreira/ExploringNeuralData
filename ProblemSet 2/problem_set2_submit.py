@@ -185,18 +185,21 @@ def output(partIdx):
   if partIdx < 8: # This is neuron1
       spikes = load_neuraldata('neuron1.npy')
       direction_rates = bin_spikes(trials,spikes,0.08)
+      print( preferred_direction( direction_rates ) )
       hist_vals = order_rates(direction_rates)
       result = hist_vals
       outputString = str(result[partIdx])+'\n'
   elif partIdx < 16:
       spikes = load_neuraldata('neuron2.npy')
       direction_rates = bin_spikes(trials,spikes,0.08)
+      print( preferred_direction( direction_rates ) )
       hist_vals = order_rates(direction_rates)
       result = hist_vals
       outputString = str(result[partIdx-8])+'\n'
   else: # This is spike_hard
       spikes = load_neuraldata('neuron3.npy')
       direction_rates = bin_spikes(trials,spikes,0.08)
+      print( preferred_direction( direction_rates ) )
       hist_vals = order_rates(direction_rates)
       result = hist_vals
       outputString = str(result[partIdx-16])+'\n'

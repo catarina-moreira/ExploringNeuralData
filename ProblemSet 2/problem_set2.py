@@ -14,7 +14,7 @@ import matplotlib.pylab as plt
 import matplotlib.mlab as mlab
 from scipy import optimize
 from scipy import stats
-
+from random import randint
 
 def load_experiment(filename):
     """
@@ -57,13 +57,15 @@ def bin_spikes(trials, spk_times, time_bin):
     # count the number of spikes per trial 
     # We will count all the spikes that occur from bin_size before to 
     # bin_size after the animal started the movement
-    spikes_per_trial = count_spikes_per_trial( spk_times, trials, time_bin  )
+    #spikes_per_trial = count_spikes_per_trial( spk_times, trials, time_bin  )
     
     # Group the trials by direction of motion & compute the average of the trials and spiker per motion
-    avg_firing_rate = compute_firing_rate_per_motion( direction_of_motions, spikes_per_trial, trials )
+    dir_rates = compute_firing_rate_per_motion( direction_of_motions, spk_times, trials, time_bin )
+
+    bin_size = dir_rates[1,0] - dir_rates[0,0]  
+    bin_size = int( bin_size )
     
-    # create direction rates vector
-    dir_rates = np.column_stack( (direction_of_motions, avg_firing_rate) )    
+    plot_tuning_curves(dir_rates, '[Neuron1] Neuron Tunning Curve')
     
     # start the fitting process
     # we need to fit the data in a normal distribution
@@ -76,66 +78,59 @@ def bin_spikes(trials, spk_times, time_bin):
     new_xs, new_ys, degrees = roll_axes( dir_rates )
     
     # next, we will try to fit the normal distribution in the data
-    fitting_curve = fitting( new_xs, new_ys, dir_rates, degrees, 'Tuning Curve Fit' )
-    
-    # shift the data back
-    new_xs, new_ys = roll_back( fitting_curve, degrees*45 )  
+    fitting_curve = fitting_normal( new_xs, new_ys, dir_rates, degrees, 'Tuning Curve Fit' )
    
-    fitting_curve = np.column_stack( (new_xs, new_ys ) )   
+    #pd = preferred_direction(fitting_curve  )   
+   
+    # shift the data back
+    new_xs, new_ys = roll_back( fitting_curve, degrees )  
+   
+    fitting_curve = np.column_stack( ( new_xs, new_ys ) )   
     
-    return dir_rates, fitting_curve
+    plot_fits( dir_rates, fitting_curve, '[Neuron1] Neuron Tunning Curve - Fitting')    
     
-    #return dir_rates
+    # fitting_curve = preferred_direction( fitting_curve )  
+    
+    # print( fitting_curve )    
+    
+    return fitting_curve
 
 # Group the trials by direction of motion & compute the average of the trials and spiker per motion
-def compute_firing_rate_per_motion( direction_of_motions, spikes_per_trial, trials ):
+def compute_firing_rate_per_motion( direction_of_motions, spk_times, trials, time_bin ):
     
-    # holds the average rate of spikes / s
-    avg_firing_rate = np.zeros(8)  
-    
-    # Group the trials by direction of motion.
-    for m in range( len( direction_of_motions ) ):
-        
-        # group trials and spikes by direction of motion
-        motion_indx = plt.find( direction_of_motions[m] == trials[:,0] )
-        trials_per_motion = trials[ motion_indx, 1 ]
-        spikes_per_motion = spikes_per_trial[motion_indx]
-        
-        # compute the average of the trials and spiker per motions
-        avg_trials_per_motion = np.average( trials_per_motion )
-        avg_spikes_per_motion = np.average( spikes_per_motion )
-        
-        # Convert from spike counts to firing rates (spikes/s)
-        avg_firing_rate[ m ] = convert_count_spikes_to_rate(avg_spikes_per_motion,
-                                                             avg_trials_per_motion, trials)
-    return avg_firing_rate
-
-# count the number of spikes per trial 
-# We will count all the spikes that occur from bin_size before to 
-# bin_size after the animal started the movement
-def count_spikes_per_trial( spk_times, trials, time_bin  ):
-    
-    # holds the number of spikes detected by trial
-    spikes_per_trial = np.zeros( len( trials ) )
-    
-    for i in range( len(trials) ):
-        # select all spikes that occur after the animal started to move
-        spikes_after = spk_times <=  trials[i,1] + time_bin
-        # select all spikes that occur before the animal started to move
-        spikes_before = spk_times >=  trials[i,1] - time_bin
-        # select all spikes that fall in the interval before and after the 
-        # animal started to move
-        spikes = np.logical_and( spikes_before, spikes_after )
-        # count the number of spikes for the respective trial
-        spikes_per_trial[i] = len( spk_times[ spikes ]  )
-        
-    return spikes_per_trial
+   avg_firing_rate = np.zeros( len( direction_of_motions ) )
+   
+   for d in range( len( direction_of_motions ) ):
+       
+       # extract the trial times for each direction
+       time_indx = plt.find( direction_of_motions[d] == trials[:,0] ) 
+       times_motion_started = trials[ time_indx, 1 ]
+       
+       total_spikes_per_trial = 0
+       
+       # for each time of the trial where the movement started,
+       # count the number of spikes that occurred in the time window
+       for t in range( len(times_motion_started) ):
+           spike_indx = plt.find( (spk_times >= times_motion_started[t] - time_bin) & (spk_times <= times_motion_started[t] + time_bin)  )
+           total_spikes_per_trial += len( spike_indx )
+       
+       # compute the average firing rate
+       avg_rate = ( (1.0*total_spikes_per_trial)  / (1.0*len(times_motion_started))) / time_bin
+       avg_rate /= 2
+       
+       # append the firing rate to 
+       avg_firing_rate[d] = avg_rate
+          
+   #append the direction d and the firing rate to the initially empty array
+   dir_rates = np.column_stack( (direction_of_motions, avg_firing_rate)  )
+   
+   return dir_rates
 
 # Convert from spike counts to firing rate (spikes/s). This is a more standard 
 # way to present the data. This allows for interpretation independent of bin size.
-def convert_count_spikes_to_rate( num_spikes, num_trials, total_trials ):
+def convert_count_spikes_to_rate( num_spikes, num_trials, bin_size ):
     
-    return ( num_spikes / num_trials )*np.count_nonzero( total_trials )*10 
+    return ( num_spikes / num_trials ) / bin_size
     
    
 def plot_tuning_curves(direction_rates, title):
@@ -148,22 +143,18 @@ def plot_tuning_curves(direction_rates, title):
     # computes the width of the bars to display
     bin_size = direction_rates[1,0] - direction_rates[0,0]
   
+    plt.figure()
     # histogram
     plt.subplot(2,2,1)  
-    
-    min_x = np.min( direction_rates[:,0] )-22
-    max_x = np.max( direction_rates[:,0] )+22
-    
-    min_y = np.min( direction_rates[:,1] )
-    max_y = np.max( direction_rates[:,1] )+2
     
     # plot the histogram
     plt.bar( direction_rates[:,0], direction_rates[:,1],  width = bin_size, align='center' )
     plt.xticks( np.arange(0, 361, bin_size) )       # specify the range of ticks
-    plt.xlim( ( min_x,  max_x ) )
-    plt.ylim( ( min_y,  max_y) )
+    
+    #plt.xlim( ( min_x,  max_x ) )
+    #plt.ylim( ( min_y,  max_y) )
     plt.xlabel('Direction of Motion (degrees)')     # add label to x-axis
-    plt.ylabel('Firering Rate (spikes/s)')          # add label to y-axis
+    plt.ylabel('Firing Rate (spikes/s)')          # add label to y-axis
     plt.title( 'Histogram: ' +  title)              # add title to histogram
     
     # polar representation
@@ -180,11 +171,10 @@ def plot_tuning_curves(direction_rates, title):
    
     # plot the polar graph
     plt.polar( theta, spikeFiringRates, label='Firing Rate (spikes/s)' )
- 
-    plt.legend(loc=8)                   # specify the location of the legend
+    #plt.legend(loc=8)                   # specify the location of the legend
     plt.title('Polar: ' + title)        # add title to the graph
     
-def roll_axes(direction_rates):
+def roll_axes( direction_rates ):
     """
     roll_axes takes the x-values (directions) and y-values (direction_rates)
     and return new x and y values that have been "rolled" to put the maximum
@@ -216,14 +206,21 @@ def roll_axes(direction_rates):
     for i in range( len(new_xs) ):
         if( i < zero_indx ):
             new_xs[ i ] = ( zero_indx - i )*bin_size*(-1)
-          
-    #plt.bar( new_xs, new_ys, width=45, align='center')
-    #plt.xticks( np.arange( np.min(new_xs) ,  np.max(new_xs)+bin_size , bin_size  ))
-    #plt.xlim( ( np.min(new_xs) - bin_size ,  np.max(new_xs) + bin_size)  )
     
-    return new_xs, new_ys, roll_degrees    
+    #debug_plot_rolled_data( new_xs, new_ys, bin_size  )
+     
+    return new_xs, new_ys, int( roll_degrees*bin_size);
     
-
+def debug_plot_rolled_data( new_xs, new_ys, bin_size  ):
+    
+    plt.figure( )
+    plt.bar( new_xs, new_ys, width=45, align='center')
+    plt.xticks( np.arange( np.min(new_xs) ,  np.max(new_xs)+bin_size , bin_size  ))
+    plt.xlim( ( np.min(new_xs) - bin_size ,  np.max(new_xs) + bin_size)  )
+    
+    n = randint(1,100000)
+    plt.savefig( str(n) + '.png')
+    
 def normal_fit(x,mu, sigma, A):
     """
     This creates a normal curve over the values in x with mean mu and
@@ -232,7 +229,7 @@ def normal_fit(x,mu, sigma, A):
     n = A*mlab.normpdf(x,mu,sigma)
     return n
 
-def fit_tuning_curve(centered_x, centered_y):
+def fit_tuning_curve_normal(centered_x, centered_y):
     """
     This takes our rolled curve, generates the guesses for the fit function,
     and runs the fit.  It returns the parameters to generate the curve.
@@ -252,6 +249,22 @@ def fit_tuning_curve(centered_x, centered_y):
                                                         # bars)
     
     p, cov = optimize.curve_fit(normal_fit, centered_x, centered_y, p0=[max_x, var, max_y])
+
+    return p
+    
+def fit_tuning_curve_von_mises(centered_x, centered_y):
+    """
+    This takes our rolled curve, generates the guesses for the fit function,
+    and runs the fit.  It returns the parameters to generate the curve.
+    """
+
+    max_y = np.amax( centered_y )                       # What is the biggest y-value? (This
+                                                        # estimates the amplitude of the curve
+    
+    max_x = centered_x[ np.argmax( centered_y) ]        # Where is the biggest y-value? (This 
+                                                        # estimates the mean of the curve, mu)
+    
+    p, cov = optimize.curve_fit(von_mises_fitfunc, centered_x, centered_y, p0=[ max_y, 4, max_x, 1 ])
 
     return p
     
@@ -277,7 +290,7 @@ def plot_fits(direction_rates,fit_curve,title):
     plt.xlim( (min_lim, max_lim + bin_size) )
     plt.xticks( np.arange( np.min(x_axis), np.max(x_axis) + 2*bin_size, bin_size  ) )
     plt.xlabel('Direction of Motion ( degrees )')
-    plt.ylabel('Firering Rate (spikes/s)')
+    plt.ylabel('Firing Rate (spikes/s)')
     plt.title( title )
     
     spikeFiringRates = direction_rates[:,1]  # select the spikes firing rates     
@@ -302,6 +315,8 @@ def plot_fits(direction_rates,fit_curve,title):
     plt.legend(loc=8)                   # specify the location of the legend
     plt.title('Polar: ' + title)        # add title to the graph
     
+    n = randint(1,100000)
+    plt.savefig( str(n) + '.png')
 
 def roll_back( data, degrees ):
     new_xs = data[:,0]
@@ -309,13 +324,13 @@ def roll_back( data, degrees ):
     
     bin_size = np.abs( data[1,0] - data[0,0] )
     
-    old_xs = np.roll( new_xs, -1*degrees )
-    old_ys = np.roll( new_ys, -1*degrees )
+    old_xs = np.roll( new_xs, int(-1*degrees) )
+    old_ys = np.roll( new_ys, int(-1*degrees) )
  
     for i in range(  len( old_xs ) ):
         if( old_xs[i] < 0 ):
             old_xs[i] = old_xs[i-1] + bin_size
-          
+    
     return old_xs, old_ys
     
 def von_mises_fitfunc(x, A, kappa, l, s):
@@ -334,11 +349,11 @@ def preferred_direction(fit_curve):
     
     preferred_direction = plt.find(  fit_curve[:,1] == prefered_value )
     
-    return fit_curve[preferred_direction,0]
+    return fit_curve[preferred_direction[0],0]
     
-def fitting( new_xs, new_ys, dir_rates, degrees, title ):
+def fitting_normal( new_xs, new_ys, dir_rates, degrees, title ):
     
-    p = fit_tuning_curve( new_xs, new_ys )
+    p = fit_tuning_curve_normal( new_xs, new_ys )
     
     curve_xs = np.arange( new_xs[0],new_xs[-1] )
     
@@ -347,19 +362,30 @@ def fitting( new_xs, new_ys, dir_rates, degrees, title ):
     fitting_curve = np.column_stack( (curve_xs, fit_ys ) ) 
     
     return fitting_curve
+
+def fitting_von_mises( new_xs, new_ys, dir_rates, degrees, title ):
+    
+    p = fit_tuning_curve_von_mises( new_xs, new_ys )
+    
+    curve_xs = np.arange( new_xs[0],new_xs[-1] )
+    
+    fit_ys = von_mises_fitfunc( curve_xs, p[0], p[1],p[2], p[3] )
+   
+    fitting_curve = np.column_stack( (curve_xs, fit_ys ) ) 
+    
+    return fitting_curve
+
        
 ##########################
 #You can put the code that calls the above functions down here    
 if __name__ == "__main__":
     trials = load_experiment('trials.npy')   
-    #spk_times = load_neuraldata('example_spikes.npy')
-    spk_times = load_neuraldata('neuron3.npy') 
+    spk_times = load_neuraldata('example_spikes.npy')
+    #spk_times = load_neuraldata('neuron1.npy') 
     
-    time_bin = 0.08         # counts the spikes from 100ms before to 100ms after the trial began
-    dir_rates,fitting_curve = bin_spikes(trials, spk_times, time_bin)
+    time_bin = 0.1      # counts the spikes from 100ms before to 100ms after the trial began
+    dir_rates = bin_spikes(trials, spk_times, time_bin)
     
-    plot_tuning_curves(dir_rates, 'Example Neuron Tunning Curve')
-    plot_fits( dir_rates, fitting_curve, 'Example Neuron Tunning Curve - Fit')
 
 
     

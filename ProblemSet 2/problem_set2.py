@@ -61,39 +61,8 @@ def bin_spikes(trials, spk_times, time_bin):
     
     # Group the trials by direction of motion & compute the average of the trials and spiker per motion
     dir_rates = compute_firing_rate_per_motion( direction_of_motions, spk_times, trials, time_bin )
-
-    bin_size = dir_rates[1,0] - dir_rates[0,0]  
-    bin_size = int( bin_size )
-    
-    plot_tuning_curves(dir_rates, '[Neuron1] Neuron Tunning Curve')
-    
-    # start the fitting process
-    # we need to fit the data in a normal distribution
-    # in order todo so, we need to change the direction rates in such a way,
-    # that the maximum peak of the function is aligned with the center of the 
-    # histogram
-
-    # we will perform a shift on the data in order to put the maximum peak in 
-    # the middle of the histogram, just like in a normal distribution
-    new_xs, new_ys, degrees = roll_axes( dir_rates )
-    
-    # next, we will try to fit the normal distribution in the data
-    fitting_curve = fitting_normal( new_xs, new_ys, dir_rates, degrees, 'Tuning Curve Fit' )
-   
-    #pd = preferred_direction(fitting_curve  )   
-   
-    # shift the data back
-    new_xs, new_ys = roll_back( fitting_curve, degrees )  
-   
-    fitting_curve = np.column_stack( ( new_xs, new_ys ) )   
-    
-    plot_fits( dir_rates, fitting_curve, '[Neuron1] Neuron Tunning Curve - Fitting')    
-    
-    # fitting_curve = preferred_direction( fitting_curve )  
-    
-    # print( fitting_curve )    
-    
-    return fitting_curve
+        
+    return dir_rates
 
 # Group the trials by direction of motion & compute the average of the trials and spiker per motion
 def compute_firing_rate_per_motion( direction_of_motions, spk_times, trials, time_bin ):
@@ -143,7 +112,6 @@ def plot_tuning_curves(direction_rates, title):
     # computes the width of the bars to display
     bin_size = direction_rates[1,0] - direction_rates[0,0]
   
-    plt.figure()
     # histogram
     plt.subplot(2,2,1)  
     
@@ -213,13 +181,9 @@ def roll_axes( direction_rates ):
     
 def debug_plot_rolled_data( new_xs, new_ys, bin_size  ):
     
-    plt.figure( )
     plt.bar( new_xs, new_ys, width=45, align='center')
     plt.xticks( np.arange( np.min(new_xs) ,  np.max(new_xs)+bin_size , bin_size  ))
     plt.xlim( ( np.min(new_xs) - bin_size ,  np.max(new_xs) + bin_size)  )
-    
-    n = randint(1,100000)
-    plt.savefig( str(n) + '.png')
     
 def normal_fit(x,mu, sigma, A):
     """
@@ -315,18 +279,16 @@ def plot_fits(direction_rates,fit_curve,title):
     plt.legend(loc=8)                   # specify the location of the legend
     plt.title('Polar: ' + title)        # add title to the graph
     
-    n = randint(1,100000)
-    plt.savefig( str(n) + '.png')
+def roll_back( new_xs, new_ys, degrees ):
 
-def roll_back( data, degrees ):
-    new_xs = data[:,0]
-    new_ys = data[:,1]
+    # compute bin_size
+    bin_size = np.abs( new_xs[1] - new_xs[0] )
     
-    bin_size = np.abs( data[1,0] - data[0,0] )
-    
+    # roll the data in the oposite direction 
     old_xs = np.roll( new_xs, int(-1*degrees) )
     old_ys = np.roll( new_ys, int(-1*degrees) )
  
+    # rename the entries of the x-axis
     for i in range(  len( old_xs ) ):
         if( old_xs[i] < 0 ):
             old_xs[i] = old_xs[i-1] + bin_size
@@ -345,48 +307,89 @@ def preferred_direction(fit_curve):
     in the first column and the y-values of the fit curve in the second.  
     It returns the preferred direction of the neuron (in degrees).
     """
-    prefered_value = max( fit_curve[:,1] )
     
+    # find the motion that is associated with the highest firing rate
+    prefered_value = max( fit_curve[:,1] )
     preferred_direction = plt.find(  fit_curve[:,1] == prefered_value )
     
     return fit_curve[preferred_direction[0],0]
     
-def fitting_normal( new_xs, new_ys, dir_rates, degrees, title ):
+def fitting_normal( dir_rates ):
     
+    # start the fitting process
+    # we need to fit the data in a normal distribution
+    # in order todo so, we need to change the direction rates in such a way,
+    # that the maximum peak of the function is aligned with the center of the 
+    # histogram
+
+    # we will perform a shift on the data in order to put the maximum peak in 
+    # the middle of the histogram, just like in a normal distribution
+    new_xs, new_ys, degrees = roll_axes( dir_rates )
+    
+    # next, we will try to fit the normal distribution in the data. 
+    # learn a function that fits the data
     p = fit_tuning_curve_normal( new_xs, new_ys )
     
+    # improve the curve by adding more data in the x-axis (more degrees of motion)
     curve_xs = np.arange( new_xs[0],new_xs[-1] )
     
-    fit_ys = normal_fit( curve_xs,p[0],p[1],p[2] )
+    # apply the learning function previously computed to the new range of motions
+    fit_ys = normal_fit( curve_xs, p[0], p[1], p[2] )
    
-    fitting_curve = np.column_stack( (curve_xs, fit_ys ) ) 
+    # shift the data back
+    new_xs, new_ys = roll_back( curve_xs, fit_ys, degrees )       
+    
+    # combine the results and return
+    fitting_curve = np.column_stack( (new_xs, new_ys ) ) 
     
     return fitting_curve
 
-def fitting_von_mises( new_xs, new_ys, dir_rates, degrees, title ):
+def fitting_von_mises( dir_rates ):
     
+    # start the fitting process
+    # we need to fit the data in a normal distribution
+    # in order todo so, we need to change the direction rates in such a way,
+    # that the maximum peak of the function is aligned with the center of the 
+    # histogram
+
+    # we will perform a shift on the data in order to put the maximum peak in 
+    # the middle of the histogram, just like in a normal distribution
+    new_xs, new_ys, degrees = roll_axes( dir_rates )
+    
+    # next, we will try to fit the normal distribution in the data
     p = fit_tuning_curve_von_mises( new_xs, new_ys )
-    
-    curve_xs = np.arange( new_xs[0],new_xs[-1] )
-    
-    fit_ys = von_mises_fitfunc( curve_xs, p[0], p[1],p[2], p[3] )
    
-    fitting_curve = np.column_stack( (curve_xs, fit_ys ) ) 
+    # improve the curve by adding more data in the x-axis (more degrees of motion)
+    curve_xs = np.arange( new_xs[0], new_xs[-1] )
+   
+    # apply the learning function previously computed to the new range of motions
+    fit_ys = von_mises_fitfunc( curve_xs, p[0], p[1], p[2], p[3] )
+    
+    # shift the data back
+    new_xs, new_ys = roll_back( curve_xs, fit_ys, degrees )      
+    
+    # combine the results and return
+    fitting_curve = np.column_stack( (new_xs, new_ys ) ) 
     
     return fitting_curve
 
-       
 ##########################
 #You can put the code that calls the above functions down here    
 if __name__ == "__main__":
     trials = load_experiment('trials.npy')   
-    spk_times = load_neuraldata('example_spikes.npy')
+    spk_times = load_neuraldata('neuron3.npy')
     #spk_times = load_neuraldata('neuron1.npy') 
     
     time_bin = 0.1      # counts the spikes from 100ms before to 100ms after the trial began
     dir_rates = bin_spikes(trials, spk_times, time_bin)
     
-
-
+    fitting_curve = fitting_normal( dir_rates )
+    
+    plot_tuning_curves(dir_rates, 'Neuron Tunning Curve')
+    
+    plot_fits( dir_rates, fitting_curve, 'Neuron Tunning Curve - Fitting')
+    
+    
+    
     
     

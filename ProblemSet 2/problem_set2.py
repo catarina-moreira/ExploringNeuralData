@@ -94,12 +94,6 @@ def compute_firing_rate_per_motion( direction_of_motions, spk_times, trials, tim
    dir_rates = np.column_stack( (direction_of_motions, avg_firing_rate)  )
    
    return dir_rates
-
-# Convert from spike counts to firing rate (spikes/s). This is a more standard 
-# way to present the data. This allows for interpretation independent of bin size.
-def convert_count_spikes_to_rate( num_spikes, num_trials, bin_size ):
-    
-    return ( num_spikes / num_trials ) / bin_size
     
    
 def plot_tuning_curves(direction_rates, title):
@@ -377,10 +371,10 @@ def fitting_von_mises( dir_rates ):
 #You can put the code that calls the above functions down here    
 if __name__ == "__main__":
     trials = load_experiment('trials.npy')   
-    spk_times = load_neuraldata('neuron3.npy')
+    spk_times = load_neuraldata('neuron2.npy')
     #spk_times = load_neuraldata('neuron1.npy') 
     
-    time_bin = 0.1      # counts the spikes from 100ms before to 100ms after the trial began
+    time_bin = 0.08      # counts the spikes from 100ms before to 100ms after the trial began
     dir_rates = bin_spikes(trials, spk_times, time_bin)
     
     fitting_curve = fitting_normal( dir_rates )
@@ -389,7 +383,28 @@ if __name__ == "__main__":
     
     plot_fits( dir_rates, fitting_curve, 'Neuron Tunning Curve - Fitting')
     
+    # Homework Question 1
+    # 136
+    print( len(trials) )
     
+    # Homework Question 2
+    # 17
+    indx = plt.find( trials[:,0] == 45  )
+    print( len( trials[indx,1] ) )
     
+    # Homework Question 6
+    # 132.0
+    pd = preferred_direction( fitting_curve )    
+    print( pd )
+
+    print dir_rates.shape
+
+    print np.array(dir_rates).shape
+
+    # Homework Question 7
+    # 143.0
+    
+    # Homework Question 8
+    # 259.0 ( wrong...)
     
     

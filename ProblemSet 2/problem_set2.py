@@ -251,6 +251,10 @@ def plot_fits(direction_rates,fit_curve,title):
     plt.ylabel('Firing Rate (spikes/s)')
     plt.title( title )
     
+def plot_polar_normal_fit( direction_rates, fit_curve, title ):
+    
+    bin_size = 45
+    
     spikeFiringRates = direction_rates[:,1]  # select the spikes firing rates     
 
     # the polar representation is like a circle, so we correct the data
@@ -268,6 +272,37 @@ def plot_fits(direction_rates,fit_curve,title):
     spikeFiringRatesFit = np.append(spikeFiringRatesFit, spikeFiringRatesFit[0])
     
     theta = np.deg2rad( np.arange( 0, 361) )
+    
+    plt.polar( theta, spikeFiringRatesFit,label='Firing Rate (spikes/s)')
+    plt.legend(loc=8)                   # specify the location of the legend
+    plt.title('Polar: ' + title)        # add title to the graph
+
+def plot_polar_von_mises_fit( direction_rates, fit_curve, title ):
+    
+    bin_size = 45
+    
+    spikeFiringRates = direction_rates[:,1]  # select the spikes firing rates     
+
+    # the polar representation is like a circle, so we correct the data
+    # in a way that the last element of the array if the same as the first one
+    spikeFiringRates = np.append(spikeFiringRates, spikeFiringRates[0])
+    
+    print( spikeFiringRates )
+    # compute the angles . A circle ranges from 0 to 360 deg
+    theta = np.append( direction_rates[:,0], np.pi*2+0.01 )
+   
+    print( len( theta ) )
+    print( len(spikeFiringRates) )
+    
+    plt.subplot(2,2,4,polar=True)
+    # plot the polar graph
+    plt.polar( theta, spikeFiringRates, 'o' )
+    
+    spikeFiringRatesFit = fit_curve[:,1]
+    spikeFiringRatesFit = np.append(spikeFiringRatesFit, spikeFiringRatesFit[0])
+    
+    
+    theta = np.arange( 0, 2*np.pi, 0.01) 
     
     plt.polar( theta, spikeFiringRatesFit,label='Firing Rate (spikes/s)')
     plt.legend(loc=8)                   # specify the location of the legend
@@ -354,8 +389,9 @@ def fitting_von_mises( dir_rates ):
     p = fit_tuning_curve_von_mises( new_xs, new_ys )
    
     # improve the curve by adding more data in the x-axis (more degrees of motion)
-    curve_xs = np.arange( new_xs[0], new_xs[-1] )
-   
+    curve_xs = np.deg2rad( np.arange(new_xs[0], new_xs[-1]  ) )
+    curve_xs = np.deg2rad( np.arange(new_xs[0], new_xs[-1], 0.01 ))
+    
     # apply the learning function previously computed to the new range of motions
     fit_ys = von_mises_fitfunc( curve_xs, p[0], p[1], p[2], p[3] )
     
@@ -371,35 +407,33 @@ def fitting_von_mises( dir_rates ):
 #You can put the code that calls the above functions down here    
 if __name__ == "__main__":
     trials = load_experiment('trials.npy')   
-    spk_times = load_neuraldata('neuron2.npy')
+    spk_times = load_neuraldata('example_spikes.npy')
     #spk_times = load_neuraldata('neuron1.npy') 
     
-    time_bin = 0.08      # counts the spikes from 100ms before to 100ms after the trial began
+    time_bin = 0.1      # counts the spikes from 100ms before to 100ms after the trial began
     dir_rates = bin_spikes(trials, spk_times, time_bin)
     
-    fitting_curve = fitting_normal( dir_rates )
+    #fitting_curve = fitting_normal( dir_rates )
+    fitting_curve = fitting_normal( dir_rates )    
     
     plot_tuning_curves(dir_rates, 'Neuron Tunning Curve')
     
     plot_fits( dir_rates, fitting_curve, 'Neuron Tunning Curve - Fitting')
     
+    plot_polar_normal_fit( dir_rates, fitting_curve, 'Neuron Tunning Curve - Fitting' )
     # Homework Question 1
     # 136
-    print( len(trials) )
+    # print( len(trials) )
     
     # Homework Question 2
     # 17
-    indx = plt.find( trials[:,0] == 45  )
-    print( len( trials[indx,1] ) )
+    # indx = plt.find( trials[:,0] == 45  )
+    # print( len( trials[indx,1] ) )
     
     # Homework Question 6
     # 132.0
-    pd = preferred_direction( fitting_curve )    
-    print( pd )
-
-    print dir_rates.shape
-
-    print np.array(dir_rates).shape
+    #pd = preferred_direction( fitting_curve )    
+    #print( pd )
 
     # Homework Question 7
     # 143.0

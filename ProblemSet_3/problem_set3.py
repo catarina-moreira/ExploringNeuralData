@@ -1,6 +1,29 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import sys
+#from '/home/govind/anaconda/lib/python2.7/site-packages/pandas/' import pandas
+#sys.path.append('anaconda/lib/python2.7/site-packages/pandas/')
 import pandas as pd
+
+# Note on the data:
+# 1. Data contains a set of trials. Each trial is identified by the name of it's target image. (targ)
+# 2. Each trial has a unique target image. And each trial starts at time = 0
+# 3. When the target image appears, the monkey has to press a button on the left or right.
+# 4. During the duration of the trial, eye movements of the monkey are sampled every 5mS. So this is stored as an array.
+# 5. For each eye-movement sample, there are three info - (time,hor_position,vert_position)
+#On every trial of the experiment, a visual stimulus appeared at a variable time (stimon). (Note that
+#each trial starts at its own time zero) The display contained a collection of small images
+#displayed on a computer screen. On every trial, the collection included a target image (targ) for
+#which the proper response was one of two buttons (side). The target on that trial appeared at the
+#coordinates (targ_x, targ_y) which are in a unit called degrees visual angle. Think of this as the
+#angle between looking straight ahead and where the target actually appeared. By convention,
+#positive values of x are to the right, and positive values of y are up. The actual response (button
+#press) occurred at a later time in the trial (response). Eye position was sampled every 5 msec
+#(em_time) and the horizontal and vertical positions are separated into separate columns
+#(em_horiz, em_vert). Finally, spikes were identified using a spike finder similar in nature to the
+#one we used in Problem Set 1. The times for spikes on every trial are in a separate column
+#(spk_times).
 
 ##
 ## This function should not be changed
@@ -62,12 +85,27 @@ def add_info(df):
 
     # df['targ_ecc'] = *** YOUR CODE_HERE ***
 
-
-
+    df['rts'] = np.abs(df['stimon'] - df['response']) # New column for response time
+    print len(df['rts'])
+    df['targ_ecc'] = np.round(np.sqrt(df['targ_x']*df['targ_x'] + df['targ_y']*df['targ_y']),5) # New column for eccentricity of the target
+    #print np.unique(df['targ_ecc']) # See the unique number of target eccentricities tested
+    #print df.groupby('stimon').first()
+    print df['stimon'].head(10)
+    print df[df['stimon'] <=0]
+    is_null = pd.isnull(df['stimon'] )
+    
+    for i in range(0,len(is_null)):
+        if(is_null[i] == True):
+            print "Null at index" + str(i)
+            
+    #print df['targ_y'].head(10)
+    print df['targ_ecc'].value_counts() # see the number of trials for each eccentricities in the data set
+    print df['targ'].value_counts() # See the number of trials in the data set for each trial type
+    
     # Leave this here - it adds information used for Exercise 5
     add_acq_time(df)
     
-    return
+    return df
 
 ##
 ## This function should be edited as part of Exercise 2
@@ -83,7 +121,7 @@ def rts_by_targ_ecc(df):
     ####
 
     # results = df.pivot_table( *** YOUR CODE HERE *** )
-
+    results = df.pivot_table(values='rts', index='targ_ecc', aggfunc=np.mean)
     return results
 
 
@@ -99,13 +137,17 @@ def plot_rts(df):
     ####
 
     # df['side_name'] = ### YOUR CODE HERE
+    # replace 0 in side column with left and 1 with right
+    df['side_name'] = np.choose(df['side'],['left','right'])
 
     # Now create a pivot table (specifying values, index, and columns)
-
+    results = df.pivot_table(values='rts', index='targ_ecc', columns='side_name',aggfunc=np.mean)
     # And now plot that pivot table
-
+    results.plot(kind='bar')
     # And add plot details (title, legend, xlabel, and ylabel)
-
+    plt.title("Reaction time for each target eccentricity")
+    plt.xlabel("Reaction time in mS")
+    plt.ylabel("Target Eccentricities")
 ##
 ## This function should be edited as part of Exercise 4
 ##
@@ -129,6 +171,32 @@ def get_ems(df, trial):
     # t = *** YOUR CODE HERE ***
     # h = *** YOUR CODE HERE ***
     # v = *** YOUR CODE HERE ***
+    # Extract the start time for this trial
+    SR = df['em_time'][0][1] - df['em_time'][0][0]
+    t1 = df['stimon'][trial] - df['stimon'][trial] % SR 
+    t2 = df['response'][trial] + df['response'][trial] % SR
+    emt = df['em_time'][trial]
+   
+    # FInd the total number of samples in range, so that we can preallocate arrays for t,h,v
+   # and get the intex of each in range value
+   # There should be a simpler way to do this in Python, but I dont know it :(
+    cnt = 0
+    indices = np.zeros(len(emt))
+    for i in range(0,len(emt)):
+        if(emt[i] >= t1 and emt[i] <= t2):
+            indices[cnt] = i
+            cnt = cnt + 1
+
+    print "Time stamps in range = " + str(cnt)
+    t = np.zeros(cnt)
+    h = np.zeros(cnt)
+    v = np.zeros(cnt)
+    
+    for i in range(0,cnt):
+        t[i] = emt[indices[i]]
+        h[i] = df['em_horiz'][trial][indices[i]]
+        v[i] = df['em_vert'][trial][indices[i]]
+
 
     return t, h, v
 
@@ -151,7 +219,14 @@ def plot_ems_and_target(df, trial):
     plt.figure()
 
     # *** YOUR CODE HERE ***
-
+    #horizontal lines for target position
+    th = df['targ_x'][trial] * np.ones(len(t))
+    tv = df['targ_y'][trial] * np.ones(len(t))
+    plt.plot(t, h, 'r', t, v, 'g',t,th,'r', t,tv,'g')
+    plt.ylim(-10,10)
+    plt.title("Eye Movements for Trial " + str(trial))
+    plt.xlabel("Time in mS")
+    plt.ylabel("Position in degrees visual angle")
     plt.show()
     
 
@@ -172,8 +247,13 @@ def get_rate(spk_times, start, stop):
     # rate = *** YOUR CODE HERE ***
     # Remember that rate should be in the units spikes/sec
     # but start and stop are in msec (.001 sec)
-
-    # rate = 
+    
+    # To find the rate just count the number of spikes within the start and stop time and divide by time in seconds
+    dt = (stop - start)
+    #rate = ((start <= spk_times) & (spk_times <= stop)).sum()/dt
+    rate = np.count_nonzero((start < spk_times) & (spk_times <= stop)) * 1000/dt
+    
+    print "Firing Rate = " + str(rate)
 
     return rate
 
@@ -186,9 +266,7 @@ def add_aligned_rates(df, alignto, start, stop):
     counting window is [alignto_event+start, alignto_event+stop).  If, for
     example, alignto='stimon', then the windows is [stimon+start,stimon+stop).
     Nothing is returned, but the DataFrame has a new column added.  E.g., 
-
     add_aligned_rates(df, 'stimon', 100, 200)
-
     will add a new column to df called df['rates_stimon_100_200']
     ."""
     
@@ -255,3 +333,19 @@ def add_acq_time(df):
     n = len(d)
     df['targ_acq'] = [find_targ_acquired_time(d[i],1.5, df['stimon'][i])
                       for i in range(n)]
+
+
+# Code to run for testing if this module is run directly
+if __name__ == "__main__":
+    df = load_data()
+    df2 = add_info(df)
+    # Find the mean reaction time for each of the eccentricities in the table
+    print df2.pivot_table(values='rts', index='targ_ecc', aggfunc=np.mean)
+    #plot_rts(df2)
+    #t,h,v = get_ems(df, 0)
+    #plot_ems_and_target(df2,213)
+    #print( get_rate(np.arange(1000,step=10),100,200) ) 
+    add_aligned_rates(df2, 'stimon' ,100, 200)
+    df.pivot_table(values='rates_stimon_100_200', index='targ',columns='targ_ecc')
+    add_aligned_rates(df2, 'targ_acq' ,100, 200)
+    print(df.pivot_table(values='rates_targ_acq_100_200', index='targ',columns='targ_ecc'))

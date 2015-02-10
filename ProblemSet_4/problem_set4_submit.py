@@ -17,6 +17,7 @@ import email.message
 import email.encoders
 import StringIO
 import sys
+import datetime
 
 """"""""""""""""""""
 """"""""""""""""""""
@@ -42,7 +43,7 @@ def submit():
   for partIdx in range(len(partIds)):
     sid = partIds[partIdx]
 
-    print '\n== ' + str(partIdx+1) + ': ' + partFriendlyNames[partIdx]
+    print '\n== ' + str(partIdx+1) + ' ' + str(sid)
 
     # Get Challenge
     (login, ch, state, ch_aux) = getChallenge(login, sid) #sid is the "part identifier"
@@ -151,45 +152,31 @@ def source(partIdx):
 
 ############ BEGIN ASSIGNMENT SPECIFIC CODE - YOU'LL HAVE TO EDIT THIS ##############
 
-from problem_set3 import load_data, add_info, rts_by_targ_ecc, get_ems, get_rate
+import problem_set4 as ps
 import numpy as np
 
 # Make sure you change this string to the last segment of your class URL.
 # For example, if your URL is https://class.coursera.org/pgm-2012-001-staging, set it to "pgm-2012-001-staging".
 URL = 'neuraldata-001'
 
-#dev = "-dev"
+# the "Identifier" you used when creating the part
 dev = ""
 
-partIds = ['ps3_rts'+dev, 'ps3_targecc'+dev, 'ps3_pivot'+dev, 'ps3_getems'+dev, 'ps3_getrate'+dev]
-# used to generate readable run-time information for students
-partFriendlyNames = ['Problem Set 3 %d/8' % (i) for i in range(1,(len(partIds)+1))]
-# source files to collect (just for our records)
-sourceFiles = ['problem_set3.py']*len(partIds)
 
-# Load data and add info
-df = load_data('problem_set3_data.npy')
-add_info(df)
+partIds = ['eeg-%d%s' % (i,dev) for i in range(1,11)]
+# used to generate readable run-time information for students
+partFriendlyNames = ['EEG %d/10' % (i) for i in range(1,11)]
+# source files to collect (just for our records)
+sourceFiles = ['problem_set4.py']*10
+
 
 def output(partIdx):
   """Uses the student code to compute the output for test cases."""
+  eeg, srate = ps.load_eeg('test_eeg.npz')
+  stages = ps.classify_eeg(eeg,srate)
+  result = stages[[6,11,26,45,50,66,71,76,85,96]]
   outputString = ''
-  
-  if partIdx == 0:
-    result = str(np.int(df['rts'][184]))
-  elif partIdx == 1:
-    result = str(np.int(np.round(df['targ_ecc'][11])))
-  elif partIdx == 2:
-    pivot_table = rts_by_targ_ecc(df)
-    result = str(np.int(np.round(pivot_table[2])))
-  elif partIdx == 3:
-    t, h, v = get_ems(df, 310)
-    result = str(np.int(np.round(100*v[80])))
-  elif partIdx == 4:
-    r = get_rate(df['spk_times'][185], 100, 200);
-    result = str(np.int(np.round(r)))
-          
-  outputString = str(result)+'\n'
+  outputString = str(result[partIdx])+'\n'
   return outputString.strip()
 
 submit()
